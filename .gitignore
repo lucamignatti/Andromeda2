@@ -1,3 +1,10 @@
+# Checkpoints
+agent_controllers_checkpoints/*
+shmem_flinks/*
+
+# Wandb
+wandb/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -10,7 +17,7 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
+dist/git
 downloads/
 eggs/
 .eggs/
