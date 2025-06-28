@@ -1,101 +1,309 @@
-# **Andromeda2**
+# **Andromeda2: Hierarchical RL for Rocket League**
 
-## **1\. Project Overview**
+A high-performance Rocket League agent implementing Hierarchical Reinforcement Learning (HRL) with explicit separation between strategic planning ("brain") and mechanical control ("muscles").
 
-This project aims to develop a high-performance Rocket League agent by moving beyond purely reactive control. The core objective is to create an agent with a genuine capacity for strategic planning and long-term decision-making. We will achieve this by implementing a **Hierarchical Reinforcement Learning (HRL)** architecture that explicitly separates the "brain" (strategic planning) from the "muscles" (mechanical control).
+## **🏆 Overview**
 
-## **2\. Core Philosophy: Separating Strategy from Mechanics**
+Andromeda2 moves beyond purely reactive control by implementing a genuine capacity for strategic planning and long-term decision-making. The agent uses the **official Extended Long Short-Term Memory (xLSTM)** implementation for strategic planning and a fast **Multi-Layer Perceptron (MLP)** for real-time action execution.
 
-Traditional RL agents often learn a single, monolithic policy that maps game states directly to actions. This can lead to mechanically impressive but strategically brittle behavior. Our approach is fundamentally different:
+### **Key Features**
+- **Hierarchical Architecture**: Strategic planner (brain) + Motor controller (muscles)
+- **Dual Reward System**: Extrinsic rewards for planner, intrinsic rewards for controller
+- **xLSTM Planning**: Advanced memory structures for temporal reasoning
+- **Vectorized Training**: High-performance parallel environment execution
+- **Goal Vector Interface**: 12D physical state representation for strategic communication
 
-* **The Planner (The "Brain"):** A high-level policy that operates on a slower, more deliberate timescale. It processes the history of the game to understand the strategic landscape and formulates a high-level plan or *intention*.  
-* **The Controller (The "Muscles"):** A low-level policy that operates in real-time. Its sole job is to execute the current plan provided by the Planner, translating strategic intent into precise, mechanical actions.
+## **Architecture**
 
-This separation allows each component to specialize, leading to a more robust, interpretable, and powerful agent.
+### **Strategic Planner (The "Brain")**
+- **Architecture**: Official xLSTM implementation with sLSTM and mLSTM blocks
+- **Function**: Processes game history to understand strategic landscape  
+- **Output**: 12-dimensional goal vector representing strategic intent
+- **Reward**: Extrinsic rewards from game outcomes (goals, saves, demos)
+- **Features**: Exponential gating, matrix memory, advanced normalization
 
-## **3\. Architectural Design**
+### **Motor Controller (The "Muscles")**
+- **Architecture**: Fast Multi-Layer Perceptron (MLP)
+- **Function**: Real-time action execution based on current state + goal vector
+- **Input**: Game state + goal vector from planner
+- **Output**: Continuous control actions (throttle, steer, pitch, yaw, roll, etc.)
+- **Reward**: Intrinsic rewards for achieving goal vector targets
 
-Our agent is a hybrid system composed of two distinct neural network modules.
+### **Goal Vector Specification**
+The 12-dimensional goal vector encodes desired physical state:
+- **Target Car Velocity (3D)**: [car_vel_x, car_vel_y, car_vel_z]
+- **Target Ball Velocity (3D)**: [ball_vel_x, ball_vel_y, ball_vel_z]
+- **Target Car-to-Ball Position (3D)**: [car_to_ball_x, y, z]
+- **Target Ball-to-Goal Position (3D)**: [ball_to_goal_x, y, z]
 
-### **3.1. The Planner Core**
+## **Installation**
 
-* **Architecture:** **Extended Long Short-Term Memory (xLSTM)**.  
-* **Function:** This recurrent network ingests sequences of game states from RLGym. Its powerful memory structures (sLSTM for state-tracking, mLSTM for high-capacity memory) allow it to build a rich, temporally-aware internal representation—the "latent brain space."  
-* **Output:** A low-dimensional **Goal Vector** that represents the current strategic plan.
+### **Prerequisites**
+- Python 3.8+
+- CUDA-capable GPU (recommended)
+- 16GB+ RAM (for vectorized training)
 
-### **3.2. The Motor Control Head**
+### **Setup**
+```bash
+# Clone repository
+git clone https://github.com/your-username/Andromeda2.git
+cd Andromeda2
 
-* **Architecture:** A simple **Multi-Layer Perceptron (MLP)**.  
-* **Function:** This fast, non-recurrent network ensures real-time responsiveness.  
-* **Inputs:** It takes two inputs at every game tick:  
-  1. The current, immediate game state vector.  
-  2. The current Goal Vector provided by the Planner.  
-* **Output:** The low-level, continuous control actions (throttle, steer, pitch, yaw, etc.) required to execute the plan.
+# Install dependencies
+pip install -r requirements.txt
 
-## **4\. Training Methodology**
+# Install official xLSTM library
+pip install git+https://github.com/NX-AI/xlstm.git
 
-We will use an on-policy HRL approach with **Proximal Policy Optimization (PPO)**. A version of PPO that supports recurrent policies is required to correctly manage the xLSTM's hidden state during training rollouts.
+# Install RLGym dependencies
+pip install rlgym-sim rocket-league-gym
 
-The key to this methodology is a two-tiered reward system:
+# Optional: Install development dependencies
+pip install -e .
+```
 
-| Component | Reward Signal | Purpose |
-| :---- | :---- | :---- |
-| **Planner (xLSTM)** | **Extrinsic Reward** | Learns to win the game. It is rewarded *only* by events from the game environment (goals, saves, demos, conceding goals). It connects its Goal Vector commands to final game outcomes. |
-| **Controller (MLP)** | **Intrinsic Reward** | Learns to be a perfect subordinate. It is rewarded *only* for how well it achieves the Goal Vector set by the Planner. It has no knowledge of the game's score or objectives. |
+### **Additional Setup**
+For RLGym-sim, you may need to install Rocket League or RocketSim:
+```bash
+# Follow RLGym-sim documentation for environment setup
+# https://github.com/AechPro/rocket-league-gym-sim
+```
 
-This dual-reward system allows the Planner to focus on high-level strategy without getting bogged down in mechanical details, while the Controller can efficiently master mechanics without being confused by complex game scenarios.
+## **Training**
 
-## **5\. Goal Vector Specification (Phase 1\)**
+### **Quick Start**
+```bash
+# Train with default configuration
+python train.py
 
-For the initial implementation, the Goal Vector will be a 12-dimensional vector representing a desired physical state. This provides a rich language for the Planner to express intent.
+# Train with custom config
+python train.py --config configs/your_config.yaml
 
-**Goal Vector g\_t:**
+# Resume from checkpoint
+python train.py --resume checkpoints/model_checkpoint.pt
 
-* **Target Car Velocity (3D):** \[car\_vel\_x, car\_vel\_y, car\_vel\_z\]  
-* **Target Ball Velocity (3D):** \[ball\_vel\_x, ball\_vel\_y, ball\_vel\_z\]  
-* **Target Car-to-Ball Relative Position (3D):** \[car\_to\_ball\_x, y, z\]  
-* **Target Ball-to-Opponent-Goal Relative Position (3D):** \[ball\_to\_opp\_goal\_x, y, z\]
+# Train with custom run name
+python train.py --run-name "experiment_1"
+```
 
-### **Controller's Intrinsic Reward Function**
+### **Training Configuration**
+Modify `configs/training_config.yaml` to customize:
+- Environment settings (1v1, 2v2, 3v3)
+- Agent architecture parameters
+- Training hyperparameters
+- Logging and evaluation settings
 
-The Controller's reward, R\_intrinsic, is the negative squared error between the actual state and the goal state, encouraging it to minimize the difference.
+### **Key Training Parameters**
+```yaml
+# Environment
+environment:
+  type: "1v1"           # Environment type
+  num_envs: 16          # Parallel environments
+  hierarchical: true    # Use hierarchical wrapper
 
-R\_intrinsic \=  
-\- w\_cv \* || actual\_car\_vel \- target\_car\_vel ||²  
-\- w\_bv \* || actual\_ball\_vel \- target\_ball\_vel ||²  
-\- w\_cp \* || actual\_car\_to\_ball\_pos \- target\_car\_to\_ball\_pos ||²  
-\- w\_bp \* || actual\_ball\_to\_opp\_goal\_pos \- target\_ball\_to\_opp\_goal\_pos ||²  
-The w\_... terms are tunable hyperparameters that balance the importance of each goal component.
+# Agent
+agent:
+  goal_vector_dim: 12   # Goal vector dimension
+  planner_update_freq: 8 # Planner update frequency
+  training_mode: "hierarchical" # Training mode
 
-## **6\. Hyperparameter Tuning & Evaluation**
+# Training
+training:
+  total_timesteps: 10000000  # Total training steps
+  learning_rate: 3e-4        # Learning rate
+  batch_size: 64             # Batch size
+  n_steps: 2048             # Rollout length
+```
 
-Success in RL requires rigorous tuning and evaluation.
+### **Monitoring Training**
+- **TensorBoard**: `tensorboard --logdir ./logs`
+- **Weights & Biases**: Configure in `training_config.yaml`
+- **Console Output**: Real-time training metrics
 
-* **Key Hyperparameters:**  
-  * RL parameters: learning\_rate, batch\_size, context\_length.  
-  * xLSTM architecture: Ratio of sLSTM to mLSTM blocks, embedding\_dimension.  
-  * Intrinsic Reward: The w weights in the reward function.  
-* **Evaluation Protocol:**  
-  1. Use modern Hyperparameter Optimization (HPO) methods like Bayesian Optimization.  
-  2. Define disjoint sets of random seeds for tuning and final testing to prevent overfitting.  
-  3. The primary metric is **win rate** against a suite of benchmark opponents (Psyonix bots, RLBot community bots of varying skill, and a frozen version of our own agent from previous checkpoints).
+## **Evaluation**
 
-## **7\. Future Work and Exploration (Phase 2\)**
+### **Basic Evaluation**
+```bash
+# Evaluate trained model
+python evaluate.py checkpoints/model_final.pt
 
-Once the Phase 1 agent is stable and performing well, the next step is to increase the strategic expressiveness of the system by moving to a more abstract goal representation.
+# Evaluate with specific settings
+python evaluate.py checkpoints/model_final.pt \
+  --episodes 100 \
+  --env-type 1v1 \
+  --deterministic
 
-### **The Latent Goal Space**
+# Compare with baseline
+python evaluate.py checkpoints/model_final.pt \
+  --baseline baseline_results.npz
+```
 
-* **Concept:** Instead of a physically-grounded goal vector, the Planner will output a low-dimensional **latent goal vector** (e.g., 8-16 dimensions) that has no predefined meaning.  
-* **Emergent Language:** The Planner and Controller must co-adapt to create a shared, implicit "language." The Planner learns to encode abstract strategies (e.g., "apply pressure," "play defensively," "set up an air dribble") into this vector, and the Controller learns to decode these abstract commands into sequences of actions.
+### **Evaluation Outputs**
+- Performance metrics (win rate, goals, episode length)
+- Goal vector analysis and visualization
+- Detailed episode statistics
+- Comparison with baseline models
 
-### **Training with a Goal Discriminator**
+## **Project Structure**
 
-This advanced approach requires a third network, a **Goal Discriminator (D)**.
+```
+Andromeda2/
+├── src/
+│   ├── models/
+│   │   ├── agent.py         # Main hierarchical agent
+│   │   ├── planner.py       # xLSTM strategic planner
+│   │   └── controller.py    # MLP motor controller
+│   ├── training/
+│   │   └── ppo_hierarchical.py # Hierarchical PPO trainer
+│   ├── environments/
+│   │   ├── factory.py       # Environment factory
+│   │   └── vectorized.py    # Vectorized environments
+│   └── utils/
+│       ├── memory.py        # Rollout buffer
+│       └── metrics.py       # Training metrics
+├── configs/
+│   └── training_config.yaml # Training configuration
+├── train.py                 # Main training script
+├── evaluate.py             # Evaluation script
+├── requirements.txt        # Dependencies
+└── README.md              # This file
+```
 
-1. **Planner (P):** Outputs a latent goal g.  
-2. **Controller (C):** Takes actions to produce a sequence of states s.  
-3. **Discriminator (D):** Is trained to predict whether a state s satisfies a given latent goal g.  
-4. **Intrinsic Reward:** The Controller's reward is now the output of the Discriminator: R\_intrinsic \= D(s, g). The Controller is rewarded for producing states that "trick" the Discriminator into thinking it has achieved the Planner's abstract goal.
+## **Configuration**
 
-This method removes the need for hand-crafting complex intrinsic reward functions and allows for the emergence of far more nuanced and creative strategies.
+### **Environment Types**
+- `1v1`: Standard 1v1 matches
+- `2v2`: 2v2 team matches
+- `3v3`: Full 3v3 matches
+- `training`: Specialized training scenarios
+
+### **Training Modes**
+- `hierarchical`: Full hierarchical training (default)
+- `planner_only`: Train only the strategic planner
+- `controller_only`: Train only the motor controller
+
+### **Controller Types**
+- `basic`: Standard MLP controller
+- `adaptive`: Controller with performance-based adaptation
+- `ensemble`: Ensemble of multiple controllers
+
+## **Advanced Features**
+
+### **Curriculum Learning**
+```yaml
+experimental:
+  use_curriculum: true
+  curriculum_stages:
+    - stage: "basic"
+      episodes: 1000000
+    - stage: "advanced"
+      episodes: 2000000
+```
+
+### **Self-Play Training**
+```yaml
+experimental:
+  use_self_play: true
+  self_play_frequency: 1000
+```
+
+### **Goal Vector Analysis**
+Monitor and analyze goal vector evolution:
+```python
+# Analyze goal vectors during evaluation
+python evaluate.py model.pt --episodes 50
+# Generates goal vector analysis plots and statistics
+```
+
+## **Performance Monitoring**
+
+### **Key Metrics**
+- **Planner Performance**: Extrinsic rewards, value function accuracy
+- **Controller Performance**: Intrinsic rewards, goal achievement
+- **Overall Performance**: Win rate, goals scored/conceded, episode length
+- **Goal Vector Analysis**: Stability, component usage, evolution patterns
+
+### **Logging Integration**
+- **Weights & Biases**: Comprehensive experiment tracking
+- **TensorBoard**: Real-time training visualization
+- **Custom Metrics**: Goal vector analysis, hierarchical-specific metrics
+
+## **Development**
+
+### **Extending the Agent**
+```python
+# Custom planner configuration
+planner_config = {
+    'hidden_size': 512,
+    'num_layers': 3,
+    'slstm_ratio': 0.7,
+    'dropout': 0.1
+}
+
+# Custom controller configuration
+controller_config = {
+    'hidden_sizes': [512, 256, 128],
+    'use_attention': True,
+    'use_goal_conditioning': 'film'
+}
+
+# Create agent
+agent = Andromeda2Agent(
+    observation_size=107,
+    planner_config=planner_config,
+    controller_config=controller_config
+)
+```
+
+### **Custom Reward Functions**
+Modify intrinsic reward weights in configuration:
+```yaml
+intrinsic_rewards:
+  car_velocity: 1.0
+  ball_velocity: 1.0  
+  car_to_ball_pos: 1.5
+  ball_to_goal_pos: 2.0
+```
+
+### **xLSTM Configuration**
+Customize the official xLSTM architecture:
+```yaml
+planner:
+  hidden_size: 512
+  num_layers: 4
+  slstm_at_layer: [0, 2]      # sLSTM for temporal tracking
+  mlstm_at_layer: [1, 3]      # mLSTM for strategic memory
+  mlstm_num_heads: 8          # Attention heads
+  context_length: 4096        # Longer memory
+```
+
+
+### **Debug Mode**
+Enable debug features in configuration:
+```yaml
+debug:
+  profile_performance: true
+  verbose_logging: true
+  check_numerics: true
+  plot_gradients: true
+```
+
+### **Performance Optimization**
+- Use GPU with sufficient VRAM (8GB+ recommended)
+- Optimize `num_envs` based on available CPU cores
+- Enable mixed precision training for faster convergence
+- Use vectorized environments for maximum throughput
+
+## **Future Development (Phase 2)**
+
+### **Latent Goal Space**
+Move from physical goal vectors to learned latent representations:
+- Emergent strategic language between planner and controller
+- Goal discriminator for unsupervised strategy discovery
+- Higher-level strategic abstractions
+
+### **Advanced Features**
+- Multi-agent coordination strategies
+- Opponent modeling and adaptation
+- Transfer learning across different game modes
+- Real-time strategy adaptation
