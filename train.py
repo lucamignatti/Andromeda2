@@ -1,7 +1,8 @@
 import os
+import torch
 
 # needed to prevent numpy from using a ton of memory in env processes and causing them to throttle each other
-os.environ["OPENBLAS_NUM_THREADS"] = "8"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 
 def build_rlgym_v2_env():
@@ -146,15 +147,15 @@ if __name__ == "__main__":
         agent_controllers_config={
             "PPO1": PPOAgentControllerConfigModel(
                 learner_config=PPOLearnerConfigModel(
+                    device="cpu:0",  # Device to use for training
                     ent_coef=0.01,  # Sets the entropy coefficient used in the PPO algorithm
                     actor_lr=5e-5,  # Sets the learning rate of the actor model
                     critic_lr=5e-5,  # Sets the learning rate of the critic model
-                    device="cpu:0"
                 ),
                 experience_buffer_config=ExperienceBufferConfigModel(
+                    device="cpu:0",  # Device to use for experience buffer
                     max_size=150_000,  # Sets the number of timesteps to store in the experience buffer. Old timesteps will be pruned to only store the most recently obtained timesteps.
                     trajectory_processor_config=GAETrajectoryProcessorConfigModel(),
-                    device="cpu:0"
                 ),
                 metrics_logger_config=WandbMetricsLoggerConfigModel(
                     group="rlgym-learn-testing"
