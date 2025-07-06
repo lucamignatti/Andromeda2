@@ -1,309 +1,156 @@
-# **Andromeda2: Hierarchical RL for Rocket League**
+# **Andromeda2: A Deliberative, Hierarchical Agent for Deep Reinforcement Learning**
 
-A high-performance Rocket League agent implementing Hierarchical Reinforcement Learning (HRL) with explicit separation between strategic planning ("brain") and mechanical control ("muscles").
+Andromeda2 is a next-generation reinforcement learning agent designed to achieve a more human-like level of strategic planning and execution. It moves beyond purely reactive policies by integrating three core principles: **Hierarchical Control**, **Internal Simulation**, and **Deliberative Planning**.
 
-## **🏆 Overview**
+This document serves as the technical blueprint for the project, detailing the agent's architecture, training methodology, and the key innovations that drive its performance.
 
-Andromeda2 moves beyond purely reactive control by implementing a genuine capacity for strategic planning and long-term decision-making. The agent uses the **official Extended Long Short-Term Memory (xLSTM)** implementation for strategic planning and a fast **Multi-Layer Perceptron (MLP)** for real-time action execution.
+---
 
-### **Key Features**
-- **Hierarchical Architecture**: Strategic planner (brain) + Motor controller (muscles)
-- **Dual Reward System**: Extrinsic rewards for planner, intrinsic rewards for controller
-- **xLSTM Planning**: Advanced memory structures for temporal reasoning
-- **Vectorized Training**: High-performance parallel environment execution
-- **Goal Vector Interface**: 12D physical state representation for strategic communication
+## **1. Core Philosophy**
 
-## **Architecture**
+The design of Andromeda2 is guided by a vision of creating agents that don't just learn optimal actions, but also understand the *why* behind them.
 
-### **Strategic Planner (The "Brain")**
-- **Architecture**: Official xLSTM implementation with sLSTM and mLSTM blocks
-- **Function**: Processes game history to understand strategic landscape  
-- **Output**: 12-dimensional goal vector representing strategic intent
-- **Reward**: Extrinsic rewards from game outcomes (goals, saves, demos)
-- **Features**: Exponential gating, matrix memory, advanced normalization
+1.  **Hierarchical Control (The "Mind and Body"):** We explicitly separate high-level strategic thinking from low-level motor control. A **Planner** decides *what* to do, and a **Controller** figures out *how* to do it. This mirrors cognitive models of human skill, separating conscious decision-making from muscle memory.
 
-### **Motor Controller (The "Muscles")**
-- **Architecture**: Fast Multi-Layer Perceptron (MLP)
-- **Function**: Real-time action execution based on current state + goal vector
-- **Input**: Game state + goal vector from planner
-- **Output**: Continuous control actions (throttle, steer, pitch, yaw, roll, etc.)
-- **Reward**: Intrinsic rewards for achieving goal vector targets
+2.  **Internal Simulation (The "Imagination"):** The agent first learns a predictive **World Model** of its environment. This model acts as an internal "dream engine," allowing the agent to simulate future possibilities and understand the consequences of actions without having to experience them in the real world.
 
-### **Goal Vector Specification**
-The 12-dimensional goal vector encodes desired physical state:
-- **Target Car Velocity (3D)**: [car_vel_x, car_vel_y, car_vel_z]
-- **Target Ball Velocity (3D)**: [ball_vel_x, ball_vel_y, ball_vel_z]
-- **Target Car-to-Ball Position (3D)**: [car_to_ball_x, y, z]
-- **Target Ball-to-Goal Position (3D)**: [ball_to_goal_x, y, z]
+3.  **Deliberative Planning (The "Conscious Thought"):** The Planner is not just a reactive network. During training, it uses the World Model as a sandbox to propose multiple strategies, simulate their outcomes, and select the most promising one. This deliberative process allows for a deeper, more robust form of planning.
 
-## **Installation**
+---
 
-### **Prerequisites**
-- Python 3.8+
-- CUDA-capable GPU (recommended)
-- 16GB+ RAM (for vectorized training)
+## **2. Architecture Deep Dive**
 
-### **Setup**
-```bash
-# Clone repository
-git clone https://github.com/your-username/Andromeda2.git
-cd Andromeda2
+The agent is composed of four primary, interconnected components.
 
-# Install dependencies
-pip install -r requirements.txt
+### **2.1. The World Model (The "Dream Engine")**
+*   **Purpose:** To learn the temporal dynamics of the environment, enabling prediction and imagination.
+*   **Style:** A Recurrent State-Space Model (RSSM), inspired by the Dreamer architecture.
+*   **Components:**
+    *   **Encoder (MLP):** Compresses the high-dimensional environment state `s_t` into a compact, probabilistic **latent state `z_t`**.
+    *   **Dynamics Model (xLSTM):** The predictive core. It takes the previous latent state `z_{t-1}` and action `a_{t-1}` to predict the distribution of the current latent state `z_t`. This allows the model to "roll forward" a simulation.
+    *   **Predictors (MLPs):** Two small networks that operate on latent states: a **Reward Predictor** to forecast future rewards and an **Observation Predictor (Decoder)** to reconstruct the environment state for training.
 
-# Install official xLSTM library
-pip install git+https://github.com/NX-AI/xlstm.git
+### **2.2. The Planner (The "Strategist")**
+*   **Purpose:** To formulate high-level, long-term strategies.
+*   **Architecture:** An autoregressive xLSTM core with a **Mixture Density Network (MDN)** head.
+*   **Functionality:**
+    *   The xLSTM body processes sequences of latent states from the World Model to build a strategic context.
+    *   The MDN head outputs parameters for a **mixture of `k` Gaussian distributions**. This allows the Planner to represent multiple, distinct strategic options (e.g., "attack," "defend," "disrupt") simultaneously, along with its confidence in each.
+    *   **Output:** A set of `k` potential **latent goal vectors (`g`)**, each representing a coherent high-level intention.
 
-# Install RLGym dependencies
-pip install rlgym-sim rocket-league-gym
+### **2.3. The Controller (The "Muscle Memory")**
+*   **Purpose:** To execute the Planner's chosen strategy with low-level motor actions.
+*   **Architecture:** A small, fast MLP.
+*   **Functionality:** It receives the current environment state `s_t` and the single, final latent goal `g_final` selected by the Planner. Its sole job is to produce the continuous action `a_t` that best achieves this goal in the immediate future.
 
-# Optional: Install development dependencies
-pip install -e .
-```
+### **2.4. The Critics (The "Evaluators")**
+*   **Purpose:** To provide the learning signals that train the Planner and Controller.
+*   **Components:**
+    *   **Extrinsic Critic (Temporal C51):** A sophisticated distributional critic that evaluates the long-term, game-winning potential of a state. It predicts not just a single value, but a full probability distribution over future rewards, and does so for multiple time horizons (e.g., 2, 5, and 10 seconds). This provides a rich, time-aware signal for training the Planner.
+    *   **Intrinsic Critic (Value-Based):** A simple MLP critic that provides a dense, short-term reward signal to the Controller. It predicts the immediate success of the Controller in achieving the Planner's current goal `g`.
 
-### **Additional Setup**
-For RLGym-sim, you may need to install Rocket League or RocketSim:
-```bash
-# Follow RLGym-sim documentation for environment setup
-# https://github.com/AechPro/rocket-league-gym-sim
-```
+---
 
-## **Training**
+## **3. The Training Doctrine**
 
-### **Quick Start**
-```bash
-# Train with default configuration
-python train.py
+Training is a multi-stage process where the agent learns to dream, plan within that dream, and then act.
 
-# Train with custom config
-python train.py --config configs/your_config.yaml
+1.  **Phase A: World Model Training**
+    *   The agent first collects real experience from the environment and uses it to train the **World Model**. The objective is to minimize the error in predicting future states and rewards, making the "dream engine" as accurate as possible.
 
-# Resume from checkpoint
-python train.py --resume checkpoints/model_checkpoint.pt
+2.  **Phase B: Imaginative Policy Learning**
+    *   This is the core loop where the Planner and Controller are trained entirely within the World Model's imagination.
+    *   **Step 1: Deliberation & Search:** At the start of a planning cycle, the **Planner** proposes its `k` candidate goals. For each candidate, a separate, short simulation is run using the World Model.
+    *   **Step 2: Evaluation:** The **Temporal C51 Critic** evaluates each of the `k` simulated trajectories, returning a detailed temporal reward profile for each potential strategy.
+    *   **Step 3: Selection:** A heuristic (e.g., selecting the strategy with the highest rate of reward increase, or "highest derivative") is applied to these profiles to select the single best goal, `g_best`.
+    *   **Step 4: Planner Update:** The Planner is updated using a Mixture Density Network loss function. Its goal is to increase the probability of generating `g_best` in this situation, effectively learning from its own deliberation process.
+    *   **Step 5: Controller Update:** The Controller is then trained for a short window, conditioned on `g_best`. It receives a dense intrinsic reward based on how well it makes the subsequent latent states match the goal `g_best`. This reward signal is provided by the **Intrinsic Critic**, which is updated simultaneously.
 
-# Train with custom run name
-python train.py --run-name "experiment_1"
-```
+---
 
-### **Training Configuration**
-Modify `configs/training_config.yaml` to customize:
-- Environment settings (1v1, 2v2, 3v3)
-- Agent architecture parameters
-- Training hyperparameters
-- Logging and evaluation settings
+## **4. Inference-Time Policy**
 
-### **Key Training Parameters**
-```yaml
-# Environment
-environment:
-  type: "1v1"           # Environment type
-  num_envs: 16          # Parallel environments
-  hierarchical: true    # Use hierarchical wrapper
+For real-time performance, the slow, deliberative process is "distilled" into a fast, feed-forward policy.
 
-# Agent
-agent:
-  goal_vector_dim: 12   # Goal vector dimension
-  planner_update_freq: 8 # Planner update frequency
-  training_mode: "hierarchical" # Training mode
+**The World Model's simulation capability is DISABLED at inference time.**
 
-# Training
-training:
-  total_timesteps: 10000000  # Total training steps
-  learning_rate: 3e-4        # Learning rate
-  batch_size: 64             # Batch size
-  n_steps: 2048             # Rollout length
-```
+1.  **Encode:** The current environment state `s_t` is encoded into a latent state `z_t`.
+2.  **Propose:** The **Planner** takes `z_t` and outputs its `k` candidate goals (the means of its MDN components).
+3.  **Evaluate:** The fast **Temporal C51 Critic** is used directly on the `k` goals to instantly predict their temporal reward profiles (no simulation required).
+4.  **Select:** The same "highest derivative" heuristic chooses the final goal, `g_final`.
+5.  **Act:** The **Controller** takes `s_t` and `g_final` to produce the final action `a_t`.
 
-### **Monitoring Training**
-- **TensorBoard**: `tensorboard --logdir ./logs`
-- **Weights & Biases**: Configure in `training_config.yaml`
-- **Console Output**: Real-time training metrics
+This creates an agent that benefits from the depth of a search-based process during training, while maintaining the speed of a reactive policy during deployment.
 
-## **Evaluation**
+---
 
-### **Basic Evaluation**
-```bash
-# Evaluate trained model
-python evaluate.py checkpoints/model_final.pt
+## **5. Key Innovations**
 
-# Evaluate with specific settings
-python evaluate.py checkpoints/model_final.pt \
-  --episodes 100 \
-  --env-type 1v1 \
-  --deterministic
+*   **MDN-based Planner:** Moves beyond simple goal-setting to represent a rich, multi-modal distribution of strategic intentions.
+*   **Temporal Distributional Critic:** Provides a nuanced understanding of not just *how much* reward is expected, but *when* it is expected to occur.
+*   **Training-Time Deliberation:** A novel training scheme where the agent uses its internal world model as a sandbox to test hypotheses before committing to a strategy.
+*   **Decoupled Inference:** A clean separation between the slow training-time search and the fast real-time policy.
 
-# Compare with baseline
-python evaluate.py checkpoints/model_final.pt \
-  --baseline baseline_results.npz
-```
+---
 
-### **Evaluation Outputs**
-- Performance metrics (win rate, goals, episode length)
-- Goal vector analysis and visualization
-- Detailed episode statistics
-- Comparison with baseline models
+## **6. Project Structure & Workflow**
 
-## **Project Structure**
+The project is structured as a series of independent stages, each with its own training and validation scripts. This ensures modularity and focused development.
 
 ```
-Andromeda2/
-├── src/
-│   ├── models/
-│   │   ├── agent.py         # Main hierarchical agent
-│   │   ├── planner.py       # xLSTM strategic planner
-│   │   └── controller.py    # MLP motor controller
-│   ├── training/
-│   │   └── ppo_hierarchical.py # Hierarchical PPO trainer
-│   ├── environments/
-│   │   ├── factory.py       # Environment factory
-│   │   └── vectorized.py    # Vectorized environments
-│   └── utils/
-│       ├── memory.py        # Rollout buffer
-│       └── metrics.py       # Training metrics
+/Andromeda2/
+├── checkpoints/
+│   ├── stage1_world_model/
+│   ├── stage2_controller/
+│   └── stage3_full_agent/
+│
 ├── configs/
-│   └── training_config.yaml # Training configuration
-├── train.py                 # Main training script
-├── evaluate.py             # Evaluation script
-├── requirements.txt        # Dependencies
-└── README.md              # This file
+│   ├── training/
+│   │   ├── stage1_world_model.yaml
+│   │   ├── stage2_controller.yaml
+│   │   └── stage3_full_agent.yaml
+│   │
+│   ├── controller.yaml
+│   ├── extrinsic_critic.yaml
+│   ├── global.yaml
+│   ├── intrinsic_critic.yaml
+│   ├── planner.yaml
+│   └── world_model.yaml
+│
+├── src/
+│   └── __init__.py
+│
+├── stage1_world_model/
+│   ├── __init__.py
+│   ├── train.py
+│   └── validate.py
+│
+├── stage2_controller/
+│   ├── __init__.py
+│   ├── train.py
+│   └── validate.py
+│
+├── stage3_full_agent/
+│   ├── __init__.py
+│   ├── train.py
+│   └── validate.py
+│
+├── cleanup.py
+├── environment.yml
+├── README.md
+└── .gitignore
 ```
 
-## **Configuration**
+### **Workflow:**
 
-### **Environment Types**
-- `1v1`: Standard 1v1 matches
-- `2v2`: 2v2 team matches
-- `3v3`: Full 3v3 matches
-- `training`: Specialized training scenarios
-
-### **Training Modes**
-- `hierarchical`: Full hierarchical training (default)
-- `planner_only`: Train only the strategic planner
-- `controller_only`: Train only the motor controller
-
-### **Controller Types**
-- `basic`: Standard MLP controller
-- `adaptive`: Controller with performance-based adaptation
-- `ensemble`: Ensemble of multiple controllers
-
-## **Advanced Features**
-
-### **Curriculum Learning**
-```yaml
-experimental:
-  use_curriculum: true
-  curriculum_stages:
-    - stage: "basic"
-      episodes: 1000000
-    - stage: "advanced"
-      episodes: 2000000
-```
-
-### **Self-Play Training**
-```yaml
-experimental:
-  use_self_play: true
-  self_play_frequency: 1000
-```
-
-### **Goal Vector Analysis**
-Monitor and analyze goal vector evolution:
-```python
-# Analyze goal vectors during evaluation
-python evaluate.py model.pt --episodes 50
-# Generates goal vector analysis plots and statistics
-```
-
-## **Performance Monitoring**
-
-### **Key Metrics**
-- **Planner Performance**: Extrinsic rewards, value function accuracy
-- **Controller Performance**: Intrinsic rewards, goal achievement
-- **Overall Performance**: Win rate, goals scored/conceded, episode length
-- **Goal Vector Analysis**: Stability, component usage, evolution patterns
-
-### **Logging Integration**
-- **Weights & Biases**: Comprehensive experiment tracking
-- **TensorBoard**: Real-time training visualization
-- **Custom Metrics**: Goal vector analysis, hierarchical-specific metrics
-
-## **Development**
-
-### **Extending the Agent**
-```python
-# Custom planner configuration
-planner_config = {
-    'hidden_size': 512,
-    'num_layers': 3,
-    'slstm_ratio': 0.7,
-    'dropout': 0.1
-}
-
-# Custom controller configuration
-controller_config = {
-    'hidden_sizes': [512, 256, 128],
-    'use_attention': True,
-    'use_goal_conditioning': 'film'
-}
-
-# Create agent
-agent = Andromeda2Agent(
-    observation_size=107,
-    planner_config=planner_config,
-    controller_config=controller_config
-)
-```
-
-### **Custom Reward Functions**
-Modify intrinsic reward weights in configuration:
-```yaml
-intrinsic_rewards:
-  car_velocity: 1.0
-  ball_velocity: 1.0  
-  car_to_ball_pos: 1.5
-  ball_to_goal_pos: 2.0
-```
-
-### **xLSTM Configuration**
-Customize the official xLSTM architecture:
-```yaml
-planner:
-  hidden_size: 512
-  num_layers: 4
-  slstm_at_layer: [0, 2]      # sLSTM for temporal tracking
-  mlstm_at_layer: [1, 3]      # mLSTM for strategic memory
-  mlstm_num_heads: 8          # Attention heads
-  context_length: 4096        # Longer memory
-```
-
-
-### **Debug Mode**
-Enable debug features in configuration:
-```yaml
-debug:
-  profile_performance: true
-  verbose_logging: true
-  check_numerics: true
-  plot_gradients: true
-```
-
-### **Performance Optimization**
-- Use GPU with sufficient VRAM (8GB+ recommended)
-- Optimize `num_envs` based on available CPU cores
-- Enable mixed precision training for faster convergence
-- Use vectorized environments for maximum throughput
-
-## **Future Development (Phase 2)**
-
-### **Latent Goal Space**
-Move from physical goal vectors to learned latent representations:
-- Emergent strategic language between planner and controller
-- Goal discriminator for unsupervised strategy discovery
-- Higher-level strategic abstractions
-
-### **Advanced Features**
-- Multi-agent coordination strategies
-- Opponent modeling and adaptation
-- Transfer learning across different game modes
-- Real-time strategy adaptation
+1.  **Setup:** Create the conda environment using `conda env create -f environment.yml`.
+2.  **Stage 1: World Model:**
+    *   Run `stage1_world_model/train.py`.
+    *   Manually inspect the dream videos produced by `stage1_world_model/validate.py` to verify model quality.
+3.  **Stage 2: Controller Pre-training:**
+    *   Run `stage2_controller/train.py`, providing the path to the validated `latest.pt` world model checkpoint.
+    *   Use `stage2_controller/validate.py` to get quantitative metrics on the controller's goal-achieving performance.
+4.  **Stage 3: Full Agent Training:**
+    *   Run `stage3_full_agent/train.py`, providing the validated checkpoints from the previous stages.
+    *   Use `stage3_full_agent/validate.py` to measure the final agent's performance (e.g., win rate) in the actual environment.
+5.  **Maintenance:** Periodically run `cleanup.py` to remove old, timestamped checkpoints and save disk space.

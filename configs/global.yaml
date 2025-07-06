@@ -1,0 +1,15 @@
+# Global configuration settings for the Andromeda3 project
+
+# The device to run the models on. Options: "cuda", "cpu"
+device: "cuda"
+
+# A random seed for reproducibility across runs
+random_seed: 42
+
+# --- Logging Configuration ---
+logging:
+  # Weights & Biases project name
+  project_name: "Andromeda2"
+
+  # Optional: W&B entity (username or team name)
+  # entity: "your_entity"
