@@ -93,7 +93,20 @@ This creates an agent that benefits from the depth of a search-based process dur
 
 ---
 
-## **6. Project Structure & Workflow**
+## **6. Training Framework**
+
+To manage the complexity of the multi-stage training process, we use a class-based training framework.
+
+*   **`src/training/base_trainer.py`:** An abstract base class that defines the core interface for all trainers. It handles common tasks like loading global configurations and creating timestamped checkpoint directories.
+*   **`src/training/world_model_trainer.py`:** The trainer for Stage 1. It manages the data collection, training loop, and validation for the World Model.
+*   **`src/training/controller_trainer.py`:** The trainer for Stage 2. It focuses on pre-training the Controller to achieve goals specified by the Planner.
+*   **`src/training/full_agent_trainer.py`:** The trainer for Stage 3. It orchestrates the complex, imagination-based training of the Planner and Controller together.
+
+Each stage's main `train.py` and `validate.py` scripts will instantiate the corresponding trainer class and execute its `train()` or `validate()` method.
+
+---
+
+## **7. Project Structure & Workflow**
 
 The project is structured as a series of independent stages, each with its own training and validation scripts. This ensures modularity and focused development.
 
@@ -105,14 +118,15 @@ The project is structured as a series of independent stages, each with its own t
 │   └── ...
 ├── src/
 │   ├── components/
+│   │   ├── ...
+│   ├── training/
 │   │   ├── __init__.py
-│   │   ├── controller.py
-│   │   ├── critics.py
-│   │   ├── planner.py
-│   │   └── world_model.py
+│   │   ├── base_trainer.py
+│   │   ├── world_model_trainer.py
+│   │   ├── controller_trainer.py
+│   │   └── full_agent_trainer.py
 │   ├── utils/
-│   │   ├── __init__.py
-│   │   └── losses.py
+│   │   ├── ...
 │   └── __init__.py
 │
 ├── stage1_world_model/
@@ -132,12 +146,12 @@ The project is structured as a series of independent stages, each with its own t
 
 1.  **Setup:** Create the conda environment using `conda env create -f environment.yml`.
 2.  **Stage 1: World Model:**
-    *   Run `stage1_world_model/train.py`.
+    *   Run `stage1_world_model/train.py` to execute the `WorldModelTrainer`.
     *   Manually inspect the dream videos produced by `stage1_world_model/validate.py` to verify model quality.
 3.  **Stage 2: Controller Pre-training:**
-    *   Run `stage2_controller/train.py`, providing the path to the validated `latest.pt` world model checkpoint.
+    *   Run `stage2_controller/train.py` to execute the `ControllerTrainer`.
     *   Use `stage2_controller/validate.py` to get quantitative metrics on the controller's goal-achieving performance.
 4.  **Stage 3: Full Agent Training:**
-    *   Run `stage3_full_agent/train.py`, providing the validated checkpoints from the previous stages.
+    *   Run `stage3_full_agent/train.py` to execute the `FullAgentTrainer`.
     *   Use `stage3_full_agent/validate.py` to measure the final agent's performance (e.g., win rate) in the actual environment.
 5.  **Maintenance:** Periodically run `cleanup.py` to remove old, timestamped checkpoints and save disk space.

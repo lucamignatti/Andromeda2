@@ -82,7 +82,7 @@ class WorldModel(nn.Module):
         self.dynamics_model = xLSTMBlockStack(xlstm_block_stack_cfg)
 
         # Projection layer to map xLSTM output back to latent_dim
-        self.dynamics_output_projection = nn.Linear(dynamics_input_dim, latent_dim)
+        self.dynamics_output_projection = nn.Linear(dynamics_input_dim, latent_dim * 2) # *2 for mean and logvar
 
         # Reward Predictor (MLP) - Forecasts future rewards from latent state
         self.reward_predictor = nn.Sequential(
@@ -103,7 +103,7 @@ class WorldModel(nn.Module):
                 action: torch.Tensor,
                 previous_latent_state: torch.Tensor,
                 hidden_state: dict[str, dict[str, tuple[torch.Tensor, ...]]] = None
-               ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+               ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
         """
         Performs a single step prediction in the World Model.
 
@@ -114,43 +114,56 @@ class WorldModel(nn.Module):
             hidden_state (dict, optional): Hidden state for the xLSTM dynamics model. Defaults to None (empty dictionary).
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
-                - predicted_latent_state (torch.Tensor): Predicted current latent state (mean).
-                - predicted_reward (torch.Tensor): Predicted reward.
-                - reconstructed_observation (torch.Tensor): Reconstructed observation.
-                - encoded_latent_state (torch.Tensor): Latent state encoded from the current observation.
-                - new_hidden_state (dict): Updated hidden state of the xLSTM dynamics model.
+            Tuple containing:
+                - predicted_latent_mean (torch.Tensor)
+                - predicted_latent_logvar (torch.Tensor)
+                - predicted_reward (torch.Tensor)
+                - reconstructed_observation (torch.Tensor)
+                - encoded_latent_mean (torch.Tensor)
+                - encoded_latent_logvar (torch.Tensor)
+                - encoded_latent_state (torch.Tensor): Sampled latent state from encoder.
+                - new_hidden_state (dict)
         """
         batch_size = observation.shape[0]
 
         # 1. Encode the current observation
-        # Flatten observation for MLP encoder
         flat_observation = observation.view(batch_size, -1)
         encoded_latent_params = self.encoder(flat_observation)
         encoded_latent_mean, encoded_latent_logvar = torch.chunk(encoded_latent_params, 2, dim=-1)
-        # For simplicity, returning mean as the encoded_latent_state. Can sample from distribution if needed.
-        encoded_latent_state = encoded_latent_mean
+        
+        # Sample from the encoded distribution (Reparameterization Trick)
+        std = torch.exp(0.5 * encoded_latent_logvar)
+        eps = torch.randn_like(std)
+        encoded_latent_state = encoded_latent_mean + eps * std
 
         # 2. Dynamics Model (xLSTM) - Predict next latent state
-        # Concatenate previous_latent_state and action as input to dynamics model
-        dynamics_input = torch.cat([previous_latent_state, action], dim=-1).unsqueeze(1) # Add sequence_length dim (1)
+        dynamics_input = torch.cat([previous_latent_state, action], dim=-1).unsqueeze(1)
 
         if hidden_state is None:
             hidden_state = {}
 
-        # xLSTM step expects input of shape (batch_size, 1, embedding_dim)
-        predicted_latent_state_output, new_hidden_state = self.dynamics_model.step(dynamics_input, state=hidden_state)
+        predicted_latent_output, new_hidden_state = self.dynamics_model.step(dynamics_input, state=hidden_state)
         
-        # Project the output of the dynamics model back to latent_dim
-        projected_dynamics_output = self.dynamics_output_projection(predicted_latent_state_output.squeeze(1)) # Remove sequence_length dim (1)
-        predicted_latent_state = projected_dynamics_output
+        projected_dynamics_output = self.dynamics_output_projection(predicted_latent_output.squeeze(1))
+        predicted_latent_mean, predicted_latent_logvar = torch.chunk(projected_dynamics_output, 2, dim=-1)
+
+        # For prediction, we use the mean of the dynamics model's output
+        predicted_latent_state_for_predictors = predicted_latent_mean
 
         # 3. Reward Predictor
-        predicted_reward = self.reward_predictor(predicted_latent_state)
+        predicted_reward = self.reward_predictor(predicted_latent_state_for_predictors)
 
         # 4. Observation Predictor (Decoder)
-        reconstructed_observation = self.observation_predictor(predicted_latent_state)
-        # Reshape back to original observation shape
+        reconstructed_observation = self.observation_predictor(predicted_latent_state_for_predictors)
         reconstructed_observation = reconstructed_observation.view(batch_size, *self.observation_shape)
 
-        return predicted_latent_state, predicted_reward, reconstructed_observation, encoded_latent_state, new_hidden_state
+        return (
+            predicted_latent_mean,
+            predicted_latent_logvar,
+            predicted_reward,
+            reconstructed_observation,
+            encoded_latent_mean,
+            encoded_latent_logvar,
+            encoded_latent_state,
+            new_hidden_state
+        )
