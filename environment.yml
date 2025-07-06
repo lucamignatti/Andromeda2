@@ -9,4 +9,5 @@ dependencies:
   - wandb=0.21.0
   - pip
   - pip:
-    - rlgym-sim
+      - xlstm
+    - mlstm_kernels

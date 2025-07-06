@@ -100,40 +100,27 @@ The project is structured as a series of independent stages, each with its own t
 ```
 /Andromeda2/
 ├── checkpoints/
-│   ├── stage1_world_model/
-│   ├── stage2_controller/
-│   └── stage3_full_agent/
-│
+│   └── ...
 ├── configs/
-│   ├── training/
-│   │   ├── stage1_world_model.yaml
-│   │   ├── stage2_controller.yaml
-│   │   └── stage3_full_agent.yaml
-│   │
-│   ├── controller.yaml
-│   ├── extrinsic_critic.yaml
-│   ├── global.yaml
-│   ├── intrinsic_critic.yaml
-│   ├── planner.yaml
-│   └── world_model.yaml
-│
+│   └── ...
 ├── src/
+│   ├── components/
+│   │   ├── __init__.py
+│   │   ├── controller.py
+│   │   ├── critics.py
+│   │   ├── planner.py
+│   │   └── world_model.py
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   └── losses.py
 │   └── __init__.py
 │
 ├── stage1_world_model/
-│   ├── __init__.py
-│   ├── train.py
-│   └── validate.py
-│
+│   └── ...
 ├── stage2_controller/
-│   ├── __init__.py
-│   ├── train.py
-│   └── validate.py
-│
+│   └── ...
 ├── stage3_full_agent/
-│   ├── __init__.py
-│   ├── train.py
-│   └── validate.py
+│   └── ...
 │
 ├── cleanup.py
 ├── environment.yml

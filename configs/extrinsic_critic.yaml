@@ -1,0 +1,21 @@
+# --- Extrinsic Critic Configuration ---
+# Defines the architecture of the TemporalC51ExtrinsicCritic component.
+
+# The dimension of the latent state vector from the World Model.
+latent_dim: 256
+
+# The number of atoms (bins) for the C51 distribution.
+num_atoms: 51
+
+# The minimum value for the support of the C51 distribution.
+v_min: -100.0
+
+# The maximum value for the support of the C51 distribution.
+v_max: 100.0
+
+# A list of integers representing the different time horizons (in environment steps).
+# The critic will predict a reward distribution for each of these horizons.
+temporal_horizons: [16, 64, 256]
+
+# A list of integers defining the number of units in each hidden layer of the MLP.
+hidden_units: [256, 256]
