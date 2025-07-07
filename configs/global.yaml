@@ -6,6 +6,11 @@ device: "cuda"
 # A random seed for reproducibility across runs
 random_seed: 42
 
+# Environment dimensions
+observation_shape: [237] # Example: 1D observation space
+action_dim: 8
+reward_dim: 1
+
 # --- Logging Configuration ---
 logging:
   # Weights & Biases project name

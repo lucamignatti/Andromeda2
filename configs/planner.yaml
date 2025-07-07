@@ -1,0 +1,17 @@
+encoder_dim: 256
+goal_dim: 256
+mdn_components: 5
+xlstm_config:
+  num_blocks: 1
+  context_length: 256
+  mlstm_block:
+    mlstm:
+      input_dim: 256
+      hidden_dim: 256
+  slstm_block:
+    slstm:
+      input_dim: 256
+      hidden_dim: 256
+    feedforward:
+      input_dim: 256
+      hidden_dim: 256

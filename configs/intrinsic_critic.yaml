@@ -1,11 +1,3 @@
-# --- Intrinsic Critic Configuration ---
-# Defines the architecture of the ValueIntrinsicCritic component.
-
-# The dimension of the latent state vector from the World Model.
-latent_dim: 256
-
-# The dimension of the latent goal vector.
-goal_dim: 32
-
-# A list of integers defining the number of units in each hidden layer of the MLP.
+encoder_dim: 256
+goal_dim: 256
 hidden_units: [256, 256]

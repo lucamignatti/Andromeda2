@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from typing import List, Tuple, Dict
+from typing import Tuple, Dict
 from xlstm import xLSTMBlockStack
 from xlstm import (
     xLSTMBlockStackConfig,
@@ -20,7 +20,7 @@ class Planner(nn.Module):
     high-level latent goals.
     """
     def __init__(self,
-                 latent_dim: int,
+                 encoder_dim: int,
                  goal_dim: int,
                  mdn_components: int,
                  xlstm_config: Dict # Configuration dictionary for xLSTMBlockStackConfig
@@ -29,7 +29,7 @@ class Planner(nn.Module):
         Initializes the Planner network.
 
         Args:
-            latent_dim (int): The dimension of the latent state vector from the World Model.
+            encoder_dim (int): The dimension of the encoded state vector from the StateEncoder.
             goal_dim (int): The dimension of the latent goal vector.
             mdn_components (int): The number of mixture components (k) for the MDN.
             xlstm_config (Dict): Configuration dictionary to build xLSTMBlockStackConfig.
@@ -37,7 +37,7 @@ class Planner(nn.Module):
         """
         super().__init__()
 
-        self.latent_dim = latent_dim
+        self.encoder_dim = encoder_dim
         self.goal_dim = goal_dim
         self.mdn_components = mdn_components
 
@@ -60,7 +60,7 @@ class Planner(nn.Module):
             slstm_block=slstm_block_cfg,
             context_length=xlstm_config.get('context_length', 256),
             num_blocks=xlstm_config.get('num_blocks', 1),
-            embedding_dim=latent_dim,
+            embedding_dim=encoder_dim,
             slstm_at=xlstm_config.get('slstm_at', []),
         )
 
@@ -68,20 +68,20 @@ class Planner(nn.Module):
         self.xlstm_stack = xLSTMBlockStack(xlstm_block_stack_cfg)
 
         # MDN Head
-        self.pi_head = nn.Linear(latent_dim, mdn_components)
-        self.mu_head = nn.Linear(latent_dim, mdn_components * goal_dim)
-        self.sigma_head = nn.Linear(latent_dim, mdn_components * goal_dim)
+        self.pi_head = nn.Linear(encoder_dim, mdn_components)
+        self.mu_head = nn.Linear(encoder_dim, mdn_components * goal_dim)
+        self.sigma_head = nn.Linear(encoder_dim, mdn_components * goal_dim)
 
     def forward(self, 
-                latent_state_sequence: torch.Tensor, 
+                encoded_state_sequence: torch.Tensor, 
                 hidden_state: dict[str, dict[str, tuple[torch.Tensor, ...]]] = None
                ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict[str, dict[str, tuple[torch.Tensor, ...]]]]:
         """
         Performs the forward pass through the Planner.
 
         Args:
-            latent_state_sequence (torch.Tensor): A sequence of latent states.
-                                                  Shape: (batch_size, sequence_length, latent_dim)
+            encoded_state_sequence (torch.Tensor): A sequence of encoded states.
+                                                  Shape: (batch_size, sequence_length, encoder_dim)
             hidden_state (dict, optional): Initial hidden state for the xLSTM.
                                            Defaults to None (empty dictionary).
 
@@ -92,14 +92,14 @@ class Planner(nn.Module):
                 - sigma (torch.Tensor): Standard deviations of the Gaussian components. Shape: (batch_size, mdn_components, goal_dim)
                 - new_hidden_state (dict): The updated hidden state of the xLSTM.
         """
-        batch_size, sequence_length, _ = latent_state_sequence.shape
+        batch_size, sequence_length, _ = encoded_state_sequence.shape
 
         if hidden_state is None:
             hidden_state = {}
 
         xlstm_output = None
         for t in range(sequence_length):
-            current_input = latent_state_sequence[:, t, :].unsqueeze(1) # Process one step at a time
+            current_input = encoded_state_sequence[:, t, :].unsqueeze(1) # Process one step at a time
             xlstm_output, hidden_state = self.xlstm_stack.step(current_input, state=hidden_state)
 
         # Take the output from the last time step for the MDN head

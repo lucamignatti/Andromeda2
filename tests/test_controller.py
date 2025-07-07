@@ -4,10 +4,16 @@ from src.components.controller import Controller
 
 class TestController(unittest.TestCase):
 
+    import unittest
+import torch
+from src.components.controller import Controller
+
+class TestController(unittest.TestCase):
+
     def setUp(self):
         # Define common dummy hyperparameters for tests
-        self.state_dim = 107
-        self.goal_dim = 32
+        self.encoder_dim = 256 # Updated to match the new architecture
+        self.goal_dim = 128    # Updated to match the new architecture
         self.hidden_units = [256, 256]
         self.action_dim = 8
         self.batch_size = 4
@@ -15,7 +21,7 @@ class TestController(unittest.TestCase):
     def test_controller_initialization(self):
         # Test if the Controller can be initialized without errors
         controller = Controller(
-            state_dim=self.state_dim,
+            encoder_dim=self.encoder_dim,
             goal_dim=self.goal_dim,
             hidden_units=self.hidden_units,
             action_dim=self.action_dim
@@ -27,15 +33,15 @@ class TestController(unittest.TestCase):
     def test_controller_forward_pass_shape(self):
         # Test the output shape of the forward pass
         controller = Controller(
-            state_dim=self.state_dim,
+            encoder_dim=self.encoder_dim,
             goal_dim=self.goal_dim,
             hidden_units=self.hidden_units,
             action_dim=self.action_dim
         )
-        dummy_state = torch.randn(self.batch_size, self.state_dim)
+        dummy_encoded_state = torch.randn(self.batch_size, self.encoder_dim)
         dummy_goal = torch.randn(self.batch_size, self.goal_dim)
 
-        output_action = controller(dummy_state, dummy_goal)
+        output_action = controller(dummy_encoded_state, dummy_goal)
         expected_shape = (self.batch_size, self.action_dim)
         self.assertEqual(output_action.shape, expected_shape,
                          f"Output shape mismatch! Expected {expected_shape}, got {output_action.shape}")
@@ -43,15 +49,15 @@ class TestController(unittest.TestCase):
     def test_controller_output_range(self):
         # Test if the output actions are within the expected [-1, 1] range due to Tanh
         controller = Controller(
-            state_dim=self.state_dim,
+            encoder_dim=self.encoder_dim,
             goal_dim=self.goal_dim,
             hidden_units=self.hidden_units,
             action_dim=self.action_dim
         )
-        dummy_state = torch.randn(self.batch_size, self.state_dim)
+        dummy_encoded_state = torch.randn(self.batch_size, self.encoder_dim)
         dummy_goal = torch.randn(self.batch_size, self.goal_dim)
 
-        output_action = controller(dummy_state, dummy_goal)
+        output_action = controller(dummy_encoded_state, dummy_goal)
         self.assertTrue(torch.all(output_action >= -1.0) and torch.all(output_action <= 1.0),
                         "Output values are not within the [-1, 1] range.")
 
@@ -65,7 +71,7 @@ class TestController(unittest.TestCase):
             device = torch.device("cpu")
 
         controller = Controller(
-            state_dim=self.state_dim,
+            encoder_dim=self.encoder_dim,
             goal_dim=self.goal_dim,
             hidden_units=self.hidden_units,
             action_dim=self.action_dim
@@ -73,11 +79,11 @@ class TestController(unittest.TestCase):
         controller.to(device)
 
         # Create dummy inputs on the determined device
-        dummy_state = torch.randn(self.batch_size, self.state_dim, device=device)
+        dummy_encoded_state = torch.randn(self.batch_size, self.encoder_dim, device=device)
         dummy_goal = torch.randn(self.batch_size, self.goal_dim, device=device)
 
         # Perform forward pass
-        output_action = controller(dummy_state, dummy_goal)
+        output_action = controller(dummy_encoded_state, dummy_goal)
 
         # Assert that the output is on the correct device
         self.assertEqual(output_action.device.type, device.type, f"Output not on expected device type {device.type}")
@@ -94,10 +100,10 @@ class TestController(unittest.TestCase):
             alt_device = torch.device("cpu")
 
         if alt_device:
-            dummy_state_main_device = torch.randn(self.batch_size, self.state_dim, device=device)
+            dummy_encoded_state_main_device = torch.randn(self.batch_size, self.encoder_dim, device=device)
             dummy_goal_alt_device = torch.randn(self.batch_size, self.goal_dim, device=alt_device)
 
-            output_action_alt_goal = controller(dummy_state_main_device, dummy_goal_alt_device)
+            output_action_alt_goal = controller(dummy_encoded_state_main_device, dummy_goal_alt_device)
             self.assertEqual(output_action_alt_goal.device.type, device.type, f"Output not on expected device type {device.type} when goal was on {alt_device.type}")
 
 if __name__ == '__main__':

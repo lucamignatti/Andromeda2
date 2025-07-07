@@ -17,7 +17,7 @@ class DummyEnv:
         Returns a random (next_observation, reward, done, info) tuple.
         """
         next_obs = np.random.randn(*self.observation_shape).astype(np.float32)
-        reward = np.random.randn(self.reward_dim).astype(np.float32)
+        reward = np.random.randn(1).astype(np.float32).item() # Return a scalar reward
         done = False
         info = {}
         return next_obs, reward, done, info

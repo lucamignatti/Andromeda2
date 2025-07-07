@@ -3,21 +3,15 @@ import torch
 from src.components.planner import Planner
 from xlstm import (
     xLSTMBlockStack,
-    xLSTMBlockStackConfig,
-    mLSTMBlockConfig,
-    mLSTMLayerConfig,
-    sLSTMBlockConfig,
-    sLSTMLayerConfig,
-    FeedForwardConfig,
 )
 
 class TestPlanner(unittest.TestCase):
 
     def setUp(self):
-        self.latent_dim = 256
-        self.goal_dim = 32
+        self.encoder_dim = 256 # Changed from latent_dim
+        self.goal_dim = 256    # Updated to match the new architecture
         # xlstm_hidden_size is now embedding_dim in xLSTMBlockStackConfig
-        self.xlstm_embedding_dim = self.latent_dim # xLSTM output dim should match latent_dim
+        self.xlstm_embedding_dim = self.encoder_dim # xLSTM output dim should match encoder_dim
         self.xlstm_num_blocks = 2 # Corresponds to num_layers in previous setup
         self.mdn_components = 5
         self.batch_size = 4
@@ -46,7 +40,7 @@ class TestPlanner(unittest.TestCase):
             "context_length": 256,
             "num_blocks": self.xlstm_num_blocks,
             "slstm_at": [1], # Example: sLSTM at block 1
-            # embedding_dim is set to latent_dim inside Planner's __init__
+            # embedding_dim is set to encoder_dim inside Planner's __init__
         }
 
         # Determine the best available device for testing
@@ -59,7 +53,7 @@ class TestPlanner(unittest.TestCase):
 
     def test_planner_initialization(self):
         planner = Planner(
-            latent_dim=self.latent_dim,
+            encoder_dim=self.encoder_dim, # Changed from latent_dim
             goal_dim=self.goal_dim,
             mdn_components=self.mdn_components,
             xlstm_config=self.xlstm_config
@@ -72,15 +66,15 @@ class TestPlanner(unittest.TestCase):
 
     def test_planner_forward_pass_shapes(self):
         planner = Planner(
-            latent_dim=self.latent_dim,
+            encoder_dim=self.encoder_dim, # Changed from latent_dim
             goal_dim=self.goal_dim,
             mdn_components=self.mdn_components,
             xlstm_config=self.xlstm_config
         ).to(self.device)
 
-        dummy_latent_sequence = torch.randn(self.batch_size, self.sequence_length, self.latent_dim, device=self.device)
+        dummy_encoded_sequence = torch.randn(self.batch_size, self.sequence_length, self.encoder_dim, device=self.device) # Changed variable name and dim
 
-        pi, mu, sigma, hidden_state = planner(dummy_latent_sequence)
+        pi, mu, sigma, hidden_state = planner(dummy_encoded_sequence)
 
         self.assertEqual(pi.shape, (self.batch_size, self.mdn_components))
         self.assertEqual(mu.shape, (self.batch_size, self.mdn_components, self.goal_dim))
@@ -90,15 +84,15 @@ class TestPlanner(unittest.TestCase):
 
     def test_planner_output_properties(self):
         planner = Planner(
-            latent_dim=self.latent_dim,
+            encoder_dim=self.encoder_dim, # Changed from latent_dim
             goal_dim=self.goal_dim,
             mdn_components=self.mdn_components,
             xlstm_config=self.xlstm_config
         ).to(self.device)
 
-        dummy_latent_sequence = torch.randn(self.batch_size, self.sequence_length, self.latent_dim, device=self.device)
+        dummy_encoded_sequence = torch.randn(self.batch_size, self.sequence_length, self.encoder_dim, device=self.device) # Changed variable name and dim
 
-        pi, mu, sigma, _ = planner(dummy_latent_sequence)
+        pi, mu, sigma, _ = planner(dummy_encoded_sequence)
 
         # Check pi sums to 1 along the last dimension
         self.assertTrue(torch.allclose(pi.sum(dim=-1), torch.ones(self.batch_size, device=self.device)))
@@ -107,16 +101,16 @@ class TestPlanner(unittest.TestCase):
 
     def test_planner_device_handling(self):
         planner = Planner(
-            latent_dim=self.latent_dim,
+            encoder_dim=self.encoder_dim, # Changed from latent_dim
             goal_dim=self.goal_dim,
             mdn_components=self.mdn_components,
             xlstm_config=self.xlstm_config
         )
         planner.to(self.device)
 
-        dummy_latent_sequence = torch.randn(self.batch_size, self.sequence_length, self.latent_dim, device=self.device)
+        dummy_encoded_sequence = torch.randn(self.batch_size, self.sequence_length, self.encoder_dim, device=self.device) # Changed variable name and dim
 
-        pi, mu, sigma, hidden_state = planner(dummy_latent_sequence)
+        pi, mu, sigma, hidden_state = planner(dummy_encoded_sequence)
 
         self.assertEqual(pi.device.type, self.device.type)
         self.assertEqual(mu.device.type, self.device.type)

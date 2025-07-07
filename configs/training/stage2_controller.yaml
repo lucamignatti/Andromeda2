@@ -1,0 +1,16 @@
+epochs: 500
+batch_size: 32
+learning_rate_controller: 1.0e-3
+learning_rate_critic: 1.0e-3
+
+# Discount factor for rewards
+gamma: 0.99
+
+# Horizon for generating goals (how many steps into the future)
+goal_horizon: 10
+
+# Horizon for training the controller and critic
+train_horizon: 50
+
+# Checkpointing
+checkpoint_interval: 50

@@ -1,17 +1,4 @@
-# --- Controller Configuration ---
-# Defines the architecture of the Controller (Muscle Memory) component.
-
-# The dimension of the environment state vector.
-# For RLGym, this is typically 107.
-state_dim: 107
-
-# The dimension of the latent goal vector provided by the Planner.
-# This is a key hyperparameter to tune.
-goal_dim: 32
-
-# A list of integers defining the number of units in each hidden layer of the MLP.
+encoder_dim: 256
+goal_dim: 256
 hidden_units: [256, 256]
-
-# The dimension of the final action vector.
-# For RLGym, this is 8 (throttle, steer, pitch, yaw, roll, jump, boost, handbrake).
 action_dim: 8

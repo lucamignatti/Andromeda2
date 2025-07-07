@@ -1,0 +1,20 @@
+epochs: 1000
+batch_size: 64
+sequence_length: 50 # Length of sequences for Planner training
+learning_rate_encoder: 1.0e-4
+learning_rate_planner: 1.0e-4
+learning_rate_controller: 1.0e-4
+learning_rate_ext_critic: 1.0e-4
+learning_rate_int_critic: 1.0e-4
+
+# Discount factor for rewards
+gamma: 0.99
+
+# Number of steps to collect data for each training iteration
+collect_steps: 1000
+
+# Replay buffer capacity
+replay_buffer_capacity: 100000
+
+# Checkpointing
+checkpoint_interval: 100
